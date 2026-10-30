@@ -53,6 +53,27 @@ class BallReceiptDetail(_Model):
     outcome: Ref | None = None
 
 
+class CardHolder(_Model):
+    """The detail of a foul or bad-behaviour event, when it carries a card."""
+
+    card: Ref | None = None
+
+
+class SubstitutionDetail(_Model):
+    replacement: Ref
+
+
+class TacticsMember(_Model):
+    player: Ref
+    position: Ref
+
+
+class Tactics(_Model):
+    """A team's players and positions, on Starting XI and Tactical Shift events."""
+
+    lineup: list[TacticsMember]
+
+
 class Event(_Model):
     id: str
     index: int
@@ -73,6 +94,10 @@ class Event(_Model):
     carry: CarryDetail | None = None
     shot: ShotDetail | None = None
     ball_receipt: BallReceiptDetail | None = None
+    tactics: Tactics | None = None
+    substitution: SubstitutionDetail | None = None
+    foul_committed: CardHolder | None = None
+    bad_behaviour: CardHolder | None = None
 
 
 class FramePlayer(_Model):
@@ -88,28 +113,10 @@ class Frame(_Model):
     freeze_frame: list[FramePlayer] = Field(default_factory=list)
 
 
-class Stint(_Model):
-    """A spell in one position, in game-clock time. `to` is null at the final whistle."""
-
-    position: str
-    from_: str = Field(alias="from")
-    to: str | None = None
-    from_period: int
-    to_period: int | None = None
-
-
-class Card(_Model):
-    time: str
-    card_type: str
-    period: int
-
-
 class LineupPlayer(_Model):
     player_id: int
     player_name: str
     jersey_number: int | None = None
-    cards: list[Card] = Field(default_factory=list)
-    positions: list[Stint] = Field(default_factory=list)
 
 
 class TeamLineup(_Model):

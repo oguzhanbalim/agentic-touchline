@@ -10,6 +10,7 @@ from synthetic import (
     ALPHA,
     BETA,
     DEFENDER_A,
+    DEFENDER_B,
     FORWARD_A,
     KEEPER_A,
     MATCH_ID,
@@ -51,10 +52,10 @@ def test_shootout_is_excluded(con) -> None:
 
 def test_progressive_passes_definition(con) -> None:
     metrics = player_metrics(con, MID_A, MATCH_ID)
-    assert metrics["passes_attempted"] == 8
-    assert metrics["passes_completed"] == 7
-    assert metrics["open_play_passes_attempted"] == 7
-    assert metrics["open_play_passes_completed"] == 6
+    assert metrics["passes_attempted"] == 7
+    assert metrics["passes_completed"] == 6
+    assert metrics["open_play_passes_attempted"] == 6
+    assert metrics["open_play_passes_completed"] == 5
     # prog-clear and prog-boundary only. See the labelled cases in synthetic.py.
     assert metrics["progressive_passes"] == 2
 
@@ -105,6 +106,12 @@ def test_pass_network_window_ends_at_a_sending_off(con) -> None:
     assert pass_network(con, MATCH_ID, BETA).window_end_minute == 70
 
 
+def test_a_card_for_a_player_off_the_pitch_changes_nothing(con) -> None:
+    # The midfielder left at minute 60 and is "shown a red" at minute 91 in the fixture.
+    rows = con.execute("SELECT player_id FROM sendings_off").fetchall()
+    assert rows == [(DEFENDER_B,)]
+
+
 def test_pass_network_average_position(con) -> None:
     network = pass_network(con, MATCH_ID, ALPHA)
     keeper = next(node for node in network.nodes if node["player_id"] == KEEPER_A)
@@ -125,7 +132,7 @@ def test_pass_links_count_both_directions(con) -> None:
         "passes_to_partner": 0,
         "passes_from_partner": 1,
     }
-    assert by_name["Alpha Şükrü Forward"]["passes_to_partner"] == 6
+    assert by_name["Alpha Şükrü Forward"]["passes_to_partner"] == 5
 
 
 def test_reception_zones(con) -> None:

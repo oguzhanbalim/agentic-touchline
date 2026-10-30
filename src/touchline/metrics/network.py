@@ -34,8 +34,8 @@ def _first_change(
             SELECT period, minute, second FROM events
             WHERE match_id = $match AND team = $team AND type = 'Substitution' AND period <= 4
             UNION ALL
-            SELECT sent_off_period, sent_off_minute, sent_off_second FROM lineups
-            WHERE match_id = $match AND team = $team AND sent_off_period IS NOT NULL
+            SELECT period, minute, second FROM sendings_off
+            WHERE match_id = $match AND team = $team
         )
         ORDER BY period, minute, second LIMIT 1
         """,

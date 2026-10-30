@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +12,9 @@ import pandas as pd
 from touchline.db import DDL, connect
 from touchline.fetch import OpenDataCache
 from touchline.metrics.definitions import SET_PIECE_PASS_TYPES
+from touchline.minutes import PERIOD_START_SECONDS, minutes_from_events
 from touchline.reception import assess_reception
-from touchline.schema import Event, Frame, FramePlayer, LineupPlayer, Match, TeamLineup
+from touchline.schema import Event, Frame, FramePlayer, Match, TeamLineup
 
 # Clock time at which each period starts. Period 5 is a penalty shootout and is not
 # open play, so it counts neither towards minutes nor towards the score.
@@ -22,7 +22,10 @@ _PERIOD_START_SECONDS = {1: 0, 2: 45 * 60, 3: 90 * 60, 4: 105 * 60}
 _LAST_PLAYED_PERIOD = 4
 
 _RECEIPT = "Ball Receipt*"
-_SENDING_OFF_CARDS = frozenset({"Red Card", "Second Yellow"})
+# Locations are recorded to 0.1 yards and can overshoot the line: Euro 2024 has a shot at
+# x = 120.1. An overshoot this small is rounding, not a contradiction.
+_PITCH_SLACK_YARDS = 1.0
+_MINUTES_SLACK = 0.5
 
 
 @dataclass(frozen=True)
@@ -35,11 +38,6 @@ class IngestSummary:
 
 class IntegrityError(RuntimeError):
     """Raised when ingested data contradicts itself. Metrics must not run on it."""
-
-
-def _clock_seconds(clock: str) -> int:
-    minutes, seconds = clock.split(":")
-    return int(minutes) * 60 + int(seconds)
 
 
 def _event_row(match_id: int, event: Event) -> dict[str, Any]:
@@ -85,75 +83,6 @@ def _event_row(match_id: int, event: Event) -> dict[str, Any]:
         "shot_end_x": shot.end_location[0] if shot else None,
         "shot_end_y": shot.end_location[1] if shot else None,
     }
-
-
-def _sent_off_at(player: LineupPlayer) -> tuple[int, int] | None:
-    """Return (period, clock seconds) of a sending-off, if there was one."""
-    for card in player.cards:
-        if card.card_type in _SENDING_OFF_CARDS:
-            return card.period, _clock_seconds(card.time)
-    return None
-
-
-def _period_end_seconds(events: list[Event]) -> dict[int, int]:
-    ends: dict[int, int] = defaultdict(int)
-    for event in events:
-        clock = event.minute * 60 + event.second
-        ends[event.period] = max(ends[event.period], clock)
-    return ends
-
-
-def _minutes_rows(
-    match_id: int, lineups: list[TeamLineup], period_ends: dict[int, int]
-) -> list[dict[str, Any]]:
-    """Convert position stints to minutes, walking each period a stint overlaps.
-
-    A stint from "00:00" in period 1 to "45:00" in period 2 means the player was in
-    that position until the second half kicked off, so period 1 runs to its own end
-    (including stoppage time) and period 2 contributes nothing.
-
-    A sending-off caps the minutes. The lineup files can list a position stint that
-    continues after the card, so the card time overrides the stint.
-    """
-    rows: list[dict[str, Any]] = []
-    played = [period for period in period_ends if period <= _LAST_PLAYED_PERIOD]
-    last_period = max(played)
-    for team in lineups:
-        for player in team.lineup:
-            per_position: dict[str, float] = defaultdict(float)
-            sent_off = _sent_off_at(player)
-            for stint in player.positions:
-                to_period = stint.to_period or last_period
-                for period in range(stint.from_period, min(to_period, last_period) + 1):
-                    start = (
-                        _clock_seconds(stint.from_)
-                        if period == stint.from_period
-                        else _PERIOD_START_SECONDS[period]
-                    )
-                    end = (
-                        _clock_seconds(stint.to)
-                        if period == to_period and stint.to is not None
-                        else period_ends[period]
-                    )
-                    if sent_off is not None:
-                        off_period, off_clock = sent_off
-                        if period > off_period:
-                            continue
-                        if period == off_period:
-                            end = min(end, off_clock)
-                    per_position[stint.position] += max(0, end - start) / 60
-            rows.extend(
-                {
-                    "match_id": match_id,
-                    "team": team.team_name,
-                    "player_id": player.player_id,
-                    "position": position,
-                    "minutes": minutes,
-                }
-                for position, minutes in per_position.items()
-                if minutes > 0
-            )
-    return rows
 
 
 def _reception_rows(
@@ -218,6 +147,16 @@ def _insert(con: duckdb.DuckDBPyConnection, table: str, rows: list[dict[str, Any
         con.unregister("_rows")
 
 
+def _match_length_minutes(con: duckdb.DuckDBPyConnection, match_id: int) -> float:
+    rows = con.execute(
+        "SELECT period, max(minute * 60 + second) FROM events "
+        "WHERE match_id = ? AND period <= ? GROUP BY period",
+        [match_id, _LAST_PLAYED_PERIOD],
+    ).fetchall()
+    seconds: int = sum(int(end) - PERIOD_START_SECONDS[int(period)] for period, end in rows)
+    return seconds / 60
+
+
 def check_integrity(con: duckdb.DuckDBPyConnection, match_id: int) -> list[str]:
     """Return every way one ingested match contradicts itself. Empty means consistent."""
     problems: list[str] = []
@@ -247,7 +186,7 @@ def check_integrity(con: duckdb.DuckDBPyConnection, match_id: int) -> list[str]:
     checks = {
         "events with a location outside the pitch": """
             SELECT count(*) FROM events WHERE match_id = ?
-            AND (x < 0 OR x > 120 OR y < 0 OR y > 80)""",
+            AND (x < -$slack OR x > 120 + $slack OR y < -$slack OR y > 80 + $slack)""",
         "shots without xG": """
             SELECT count(*) FROM events WHERE match_id = ? AND type = 'Shot' AND shot_xg IS NULL""",
         "frames with no matching event": """
@@ -261,8 +200,24 @@ def check_integrity(con: duckdb.DuckDBPyConnection, match_id: int) -> list[str]:
             ANTI JOIN lineups l ON e.match_id = l.match_id AND e.player_id = l.player_id
             WHERE e.match_id = ? AND e.player_id IS NOT NULL""",
     }
+    length = _match_length_minutes(con, match_id)
+    over = con.execute(
+        "SELECT count(*) FROM (SELECT player_id FROM player_minutes WHERE match_id = ? "
+        "GROUP BY player_id HAVING sum(minutes) > ?)",
+        [match_id, length + _MINUTES_SLACK],
+    ).fetchone()
+    if over and over[0]:
+        problems.append(f"{over[0]} players with more minutes than the match's {length:.1f}")
+    team_totals = con.execute(
+        "SELECT team, sum(minutes) FROM player_minutes WHERE match_id = ? GROUP BY team",
+        [match_id],
+    ).fetchall()
+    for team, total in team_totals:
+        if total > 11 * length + _MINUTES_SLACK:
+            problems.append(f"{team}: {total:.1f} player-minutes in a {length:.1f}-minute match")
+
     for label, sql in checks.items():
-        result = con.execute(sql, [match_id]).fetchone()
+        result = con.execute(sql.replace("$slack", str(_PITCH_SLACK_YARDS)), [match_id]).fetchone()
         count = result[0] if result else 0
         if count:
             problems.append(f"{count} {label}")
@@ -352,16 +307,14 @@ def _ingest_match(
                 "player_id": player.player_id,
                 "player": player.player_name,
                 "jersey_number": player.jersey_number,
-                "sent_off_period": sent_off[0] if sent_off else None,
-                "sent_off_minute": sent_off[1] // 60 if sent_off else None,
-                "sent_off_second": sent_off[1] % 60 if sent_off else None,
             }
             for team in lineups
             for player in team.lineup
-            for sent_off in [_sent_off_at(player)]
         ],
     )
-    _insert(con, "player_minutes", _minutes_rows(match_id, lineups, _period_end_seconds(events)))
+    minutes, sendings_off = minutes_from_events(events)
+    _insert(con, "player_minutes", [{"match_id": match_id, **asdict(row)} for row in minutes])
+    _insert(con, "sendings_off", [{"match_id": match_id, **asdict(row)} for row in sendings_off])
     _insert(con, "events", [_event_row(match_id, event) for event in events])
     _insert(
         con,

@@ -86,6 +86,15 @@ def _event(
     return event
 
 
+def event(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """The event builder, for tests that assemble their own short match."""
+    return _event(*args, **kwargs)
+
+
+def tactics(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    return _tactics(*args, **kwargs)
+
+
 def _pass(
     label: str,
     player: int,
@@ -149,6 +158,47 @@ def _receipt(
     return _event(label, "Ball Receipt*", ALPHA, player, position, location, **extra)
 
 
+def _tactics(
+    label: str,
+    type_: str,
+    team: str,
+    members: list[tuple[int, str]],
+    minute: int,
+    period: int = 1,
+) -> dict[str, Any]:
+    lineup = [
+        {"player": _ref(_NAMES[player], player), "position": _ref(position, _POSITIONS[position])}
+        for player, position in members
+    ]
+    return _event(label, type_, team, minute=minute, period=period, tactics={"lineup": lineup})
+
+
+_ALPHA_XI = [
+    (KEEPER_A, "Goalkeeper"),
+    (DEFENDER_A, "Center Back"),
+    (MID_A, "Center Midfield"),
+    (FORWARD_A, "Center Forward"),
+]
+_ALPHA_SHIFTED = [
+    (KEEPER_A, "Goalkeeper"),
+    (DEFENDER_A, "Center Back"),
+    (MID_A, "Center Forward"),
+    (FORWARD_A, "Center Forward"),
+]
+_ALPHA_AFTER_SUB = [
+    (KEEPER_A, "Goalkeeper"),
+    (DEFENDER_A, "Center Back"),
+    (SUB_A, "Center Midfield"),
+    (FORWARD_A, "Center Forward"),
+]
+_BETA_XI = [
+    (KEEPER_B, "Goalkeeper"),
+    (DEFENDER_B, "Center Back"),
+    (MID_B, "Center Midfield"),
+    (FORWARD_B, "Center Forward"),
+]
+
+
 def _carry(label: str, start: list[float], end: list[float]) -> dict[str, Any]:
     return _event(
         label, "Carry", ALPHA, MID_A, "Center Midfield", start, carry={"end_location": end}
@@ -158,6 +208,8 @@ def _carry(label: str, start: list[float], end: list[float]) -> dict[str, Any]:
 def build_events() -> list[dict[str, Any]]:
     cm, cf, cb, gk = "Center Midfield", "Center Forward", "Center Back", "Goalkeeper"
     return [
+        _tactics("xi-a", "Starting XI", ALPHA, _ALPHA_XI, minute=0),
+        _tactics("xi-b", "Starting XI", BETA, _BETA_XI, minute=0),
         # Progressive-pass cases for the Alpha midfielder. Distances are to (120, 40).
         _pass("prog-clear", MID_A, cm, [60, 40], [100, 40], FORWARD_A),  # 60 to 20
         _pass("prog-boundary", MID_A, cm, [80, 40], [90, 40], FORWARD_A),  # exactly 25%, 10 yards
@@ -168,8 +220,6 @@ def build_events() -> list[dict[str, Any]]:
         _pass("recovery-open-play", MID_A, cm, [60, 40], [62, 40], FORWARD_A, pass_type="Recovery"),
         _pass("gk-to-def", KEEPER_A, gk, [6, 40], [30, 40], DEFENDER_A),
         _pass("def-to-mid", DEFENDER_A, cb, [30, 40], [50, 40], MID_A),
-        # After Alpha's minute-60 substitution, so outside the pass-network window.
-        _pass("after-sub", MID_A, cm, [60, 40], [62, 40], FORWARD_A, minute=70, period=2),
         # Carries.
         _event("carry-prog", "Carry", ALPHA, MID_A, cm, [40, 40], carry={"end_location": [70, 40]}),
         _event(
@@ -193,10 +243,47 @@ def build_events() -> list[dict[str, Any]]:
         _receipt("rec-misaligned", FORWARD_A, cf, [90, 40]),
         _receipt("rec-failed", FORWARD_A, cf, [90, 40], outcome="Incomplete"),
         _receipt("rec-corner", FORWARD_A, cf, [90, 40], related="not-prog-corner"),
-        # Substitution and period ends. Period 1 ends at 46:00, period 2 at 92:00.
-        _event("sub", "Substitution", ALPHA, MID_A, cm, minute=60, period=2),
+        # Period 1 ends at 46:00. Bringing the midfielder forward at half time means period 2
+        # kicks off with a clock of 45:00, which must add nothing to period 1's stoppage time.
         _event("half-1-end", "Half End", ALPHA, minute=46, period=1),
         _event("half-1-end-b", "Half End", BETA, minute=46, period=1),
+        _tactics("shift", "Tactical Shift", ALPHA, _ALPHA_SHIFTED, minute=45, period=2),
+        # Off at 60:00 for the substitute, who takes the midfield role straight away.
+        _event(
+            "sub",
+            "Substitution",
+            ALPHA,
+            MID_A,
+            cf,
+            minute=60,
+            period=2,
+            substitution={"replacement": _ref(_NAMES[SUB_A], SUB_A), "outcome": _ref("Tactical")},
+        ),
+        _tactics("shift-2", "Tactical Shift", ALPHA, _ALPHA_AFTER_SUB, minute=60, period=2),
+        # Second yellow at 70:00.
+        _event(
+            "second-yellow",
+            "Foul Committed",
+            BETA,
+            DEFENDER_B,
+            cb,
+            [30, 40],
+            minute=70,
+            period=2,
+            foul_committed={"card": _ref("Second Yellow")},
+        ),
+        # After Alpha's substitution, so outside the pass-network window.
+        _pass("after-sub", FORWARD_A, cf, [90, 40], [92, 40], SUB_A, minute=70, period=2),
+        # A card for a player not on the pitch must change nothing.
+        _event(
+            "bench-red",
+            "Bad Behaviour",
+            ALPHA,
+            MID_A,
+            minute=91,
+            period=2,
+            bad_behaviour={"card": _ref("Red Card")},
+        ),
         _event("half-2-end", "Half End", ALPHA, minute=92, period=2),
         _event("half-2-end-b", "Half End", BETA, minute=92, period=2),
     ]
@@ -255,23 +342,8 @@ def build_frames() -> list[dict[str, Any]]:
     ]
 
 
-def _stint(
-    position: str, start: str, end: str | None, start_period: int, end_period: int | None
-) -> dict:
-    return {
-        "position_id": _POSITIONS[position],
-        "position": position,
-        "from": start,
-        "to": end,
-        "from_period": start_period,
-        "to_period": end_period,
-        "start_reason": "x",
-        "end_reason": "x",
-    }
-
-
 def build_lineups() -> list[dict[str, Any]]:
-    def entry(player: int, number: int, stints: list[dict[str, Any]]) -> dict[str, Any]:
+    def entry(player: int, number: int) -> dict[str, Any]:
         return {
             "player_id": player,
             "player_name": _NAMES[player],
@@ -279,46 +351,29 @@ def build_lineups() -> list[dict[str, Any]]:
             "jersey_number": number,
             "country": _ref("Nowhere"),
             "cards": [],
-            "positions": stints,
+            "positions": [],
         }
-
-    full_match = [("00:00", None, 1, None)]
-
-    def starters(player: int, number: int, position: str) -> dict:
-        return entry(player, number, [_stint(position, *full_match[0])])
 
     return [
         {
             "team_id": 1,
             "team_name": ALPHA,
             "lineup": [
-                starters(KEEPER_A, 1, "Goalkeeper"),
-                starters(DEFENDER_A, 4, "Center Back"),
-                # Stint split at half-time then replaced at 60:00: the clock trap in minutes.
-                entry(
-                    MID_A,
-                    8,
-                    [
-                        _stint("Center Midfield", "00:00", "45:00", 1, 2),
-                        _stint("Center Forward", "45:00", "60:00", 2, 2),
-                    ],
-                ),
-                entry(SUB_A, 12, [_stint("Center Midfield", "60:00", None, 2, None)]),
-                starters(FORWARD_A, 9, "Center Forward"),
+                entry(KEEPER_A, 1),
+                entry(DEFENDER_A, 4),
+                entry(MID_A, 8),
+                entry(SUB_A, 12),
+                entry(FORWARD_A, 9),
             ],
         },
         {
             "team_id": 2,
             "team_name": BETA,
             "lineup": [
-                starters(KEEPER_B, 1, "Goalkeeper"),
-                # Second yellow at 70:00; the stint wrongly runs on, as real data can.
-                {
-                    **starters(DEFENDER_B, 4, "Center Back"),
-                    "cards": [{"time": "70:00", "card_type": "Second Yellow", "period": 2}],
-                },
-                starters(MID_B, 8, "Center Midfield"),
-                starters(FORWARD_B, 9, "Center Forward"),
+                entry(KEEPER_B, 1),
+                entry(DEFENDER_B, 4),
+                entry(MID_B, 8),
+                entry(FORWARD_B, 9),
             ],
         },
     ]

@@ -4,6 +4,12 @@ Generated from `src/touchline/metrics/definitions.py` by `python -m touchline.me
 
 All locations use StatsBomb's coordinates: x from 0 to 120 along the pitch, y from 0 to 80 across it, with the acting team always attacking towards x = 120.
 
+## minutes
+
+**Definition.** Time on the pitch, from Starting XI, Tactical Shift and Substitution events and sending-off cards, walked in event order. A period ends at its last recorded event. Penalty shootouts do not count.
+
+**Limitations.** Short spells off the pitch for treatment count as played. Per-90 values inherit this.
+
 ## shots_and_xg
 
 **Definition.** Shot events in periods 1 to 4, excluding penalty shootouts. xG is StatsBomb's own `statsbomb_xg` field, summed. A goal is a shot with outcome Goal.

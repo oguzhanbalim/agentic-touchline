@@ -39,6 +39,13 @@ class MetricDefinition:
 
 _DEFINITIONS = (
     MetricDefinition(
+        "minutes",
+        "Time on the pitch, from Starting XI, Tactical Shift and Substitution events and "
+        "sending-off cards, walked in event order. A period ends at its last recorded event. "
+        "Penalty shootouts do not count.",
+        "Short spells off the pitch for treatment count as played. Per-90 values inherit this.",
+    ),
+    MetricDefinition(
         "shots_and_xg",
         "Shot events in periods 1 to 4, excluding penalty shootouts. xG is StatsBomb's own "
         "`statsbomb_xg` field, summed. A goal is a shot with outcome Goal.",

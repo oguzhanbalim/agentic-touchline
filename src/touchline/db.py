@@ -25,10 +25,15 @@ CREATE OR REPLACE TABLE lineups (
     team VARCHAR NOT NULL,
     player_id BIGINT NOT NULL,
     player VARCHAR NOT NULL,
-    jersey_number INTEGER,
-    sent_off_period INTEGER,
-    sent_off_minute INTEGER,
-    sent_off_second INTEGER
+    jersey_number INTEGER
+);
+CREATE OR REPLACE TABLE sendings_off (
+    match_id BIGINT NOT NULL,
+    team VARCHAR NOT NULL,
+    player_id BIGINT NOT NULL,
+    period INTEGER NOT NULL,
+    minute INTEGER NOT NULL,
+    second INTEGER NOT NULL
 );
 CREATE OR REPLACE TABLE player_minutes (
     match_id BIGINT NOT NULL,

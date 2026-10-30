@@ -45,6 +45,36 @@ def test_ingest_rejects_a_score_that_contradicts_the_events(tmp_path: Path) -> N
         ingest(cache, tmp_path / "t.duckdb", 1, 1, team=None)
 
 
+def _ingest_with_first_shot_at(x: float, directory: Path) -> None:
+    files = build_files()
+    url = next(key for key in files if "/events/" in key)
+    events = json.loads(files[url])
+    next(event for event in events if event["type"]["name"] == "Shot")["location"] = [x, 40.0]
+    files[url] = json.dumps(events).encode()
+
+    def downloader(target: str) -> bytes:
+        if target not in files:
+            raise FileNotFoundError(target)
+        return files[target]
+
+    ingest(
+        OpenDataCache(directory / "cache", downloader=downloader),
+        directory / "t.duckdb",
+        1,
+        1,
+        None,
+    )
+
+
+def test_integrity_tolerates_a_rounding_overshoot_of_the_line(tmp_path: Path) -> None:
+    _ingest_with_first_shot_at(120.1, tmp_path)
+
+
+def test_integrity_rejects_a_location_well_off_the_pitch(tmp_path: Path) -> None:
+    with pytest.raises(IntegrityError, match="outside the pitch"):
+        _ingest_with_first_shot_at(130.0, tmp_path)
+
+
 def test_schema_rejects_malformed_events() -> None:
     event = build_events()[0]
     event["location"] = ["not", "numbers"]
@@ -69,13 +99,13 @@ def test_minutes_handle_half_time_and_stoppage_clock(con) -> None:
         ).fetchall()
         return dict(rows)
 
-    # Period 1 runs to 46:00, and the "45:00 in period 2" stint end adds nothing to it.
+    # Period 1 runs to 46:00, and the half-time shift at clock 45:00 adds nothing to it.
     assert minutes(MID_A) == {"Center Midfield": 46.0, "Center Forward": 15.0}
     # On at 60:00 in period 2, on to the last event at 92:00.
     assert minutes(SUB_A) == {"Center Midfield": 32.0}
 
 
-def test_a_sending_off_caps_minutes_even_if_a_stint_runs_on(con) -> None:
+def test_a_sending_off_caps_minutes(con) -> None:
     rows = con.execute(
         "SELECT sum(minutes) FROM player_minutes WHERE player_id = ?", [DEFENDER_B]
     ).fetchone()

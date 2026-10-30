@@ -68,32 +68,56 @@ def test_goals_including_own_goals_match_the_score(real_con: duckdb.DuckDBPyConn
             assert counted == score, f"match {match_id} {team}"
 
 
-def test_team_minutes_equal_eleven_players_for_the_match(
-    real_con: duckdb.DuckDBPyConnection,
-) -> None:
-    rows = real_con.execute(
+def _team_minute_gaps(con: duckdb.DuckDBPyConnection) -> list[tuple[int, str, float, float]]:
+    """For each team in each match: minutes played, and 11 x the match's length."""
+    return con.execute(
         """
         WITH length AS (
-            SELECT match_id, sum(end_clock - start_clock) AS seconds FROM (
+            SELECT match_id, sum(end_clock - start_clock) / 60.0 AS minutes FROM (
                 SELECT match_id, period, max(minute * 60 + second) AS end_clock,
                        CASE period WHEN 1 THEN 0 WHEN 2 THEN 2700 WHEN 3 THEN 5400 ELSE 6300 END
                            AS start_clock
                 FROM events WHERE period <= 4 GROUP BY 1, 2
             ) GROUP BY 1
         )
-        SELECT m.match_id, m.team, sum(m.minutes), any_value(l.seconds) / 60.0
+        SELECT m.match_id, m.team, sum(m.minutes), 11 * any_value(l.minutes)
         FROM player_minutes m JOIN length l USING (match_id) GROUP BY 1, 2
         """
     ).fetchall()
-    assert len(rows) == 10
-    for match_id, team, minutes, match_length in rows:
-        lost = 0.0
-        if (match_id, team) == CZECH_SENDING_OFF:
-            # Second yellow at 19:17: ten players for the rest of the match, plus the short
-            # treatment gaps that the stints record.
-            lost = match_length - 19.28
-        # Slack covers treatment gaps and clock rounding between stints and events.
-        assert minutes == pytest.approx(11 * match_length - lost, abs=3.0), f"{match_id} {team}"
+
+
+def _assert_minutes_add_up(con: duckdb.DuckDBPyConnection) -> None:
+    sent_off = {
+        row[0:2] for row in con.execute("SELECT match_id, team FROM sendings_off").fetchall()
+    }
+    for match_id, team, minutes, expected in _team_minute_gaps(con):
+        if (match_id, team) in sent_off:
+            assert minutes < expected, f"{match_id} {team}"
+        else:
+            assert minutes == pytest.approx(expected, abs=0.1), f"{match_id} {team}"
+
+
+def test_team_minutes_equal_eleven_players_for_the_match(
+    real_con: duckdb.DuckDBPyConnection,
+) -> None:
+    assert len(_team_minute_gaps(real_con)) == 10
+    _assert_minutes_add_up(real_con)
+
+
+def test_minutes_add_up_in_extra_time_and_shootout_matches(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """The lineup files scramble in these matches. Slovenia's run has one of each."""
+    db_path = tmp_path_factory.mktemp("real") / "extra_time.duckdb"
+    cache = OpenDataCache(default_paths().cache_dir)
+    ingest(cache, db_path, DEFAULT_COMPETITION_ID, DEFAULT_SEASON_ID, "Slovenia")
+    con = connect(db_path, read_only=True)
+    try:
+        periods = con.execute("SELECT max(period) FROM events").fetchone()
+        assert periods == (5,)
+        _assert_minutes_add_up(con)
+    finally:
+        con.close()
 
 
 def test_no_empty_minute_rows(real_con: duckdb.DuckDBPyConnection) -> None:
