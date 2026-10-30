@@ -34,5 +34,5 @@ and is not covered by the MIT license.
 
 ## Independence
 
-Not affiliated with any club, player or federation.
+Not endorsed by any club, player or federation.
 Not affiliated with Anthropic or StatsBomb.

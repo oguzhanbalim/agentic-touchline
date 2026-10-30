@@ -15,7 +15,9 @@ DEFAULT_SEASON_ID = 282
 DEFAULT_TEAM = "Turkey"
 
 ATTRIBUTION = "Data: StatsBomb Open Data"
-DISCLAIMER = "Not affiliated with any club, player or federation, Anthropic or StatsBomb."
+DISCLAIMER = (
+    "Not endorsed by any club, player or federation. Not affiliated with Anthropic or StatsBomb."
+)
 
 # StatsBomb's pitch is 120 x 80 units, nominally yards. Each team attacks towards x = 120.
 PITCH_LENGTH = 120.0

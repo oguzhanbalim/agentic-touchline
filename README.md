@@ -9,7 +9,7 @@ and where they should receive the ball. Every number in an answer comes from a q
 Data: [StatsBomb Open Data](https://github.com/statsbomb/open-data). Analysis here is not
 necessarily the opinion of StatsBomb.
 
-Not affiliated with any club, player or federation. Not affiliated with Anthropic or StatsBomb.
+Not endorsed by any club, player or federation. Not affiliated with Anthropic or StatsBomb. Built only on public data; no private data from any client work is used.
 
 ## Status
 
@@ -76,7 +76,7 @@ $ python3.12 -m venv .venv && source .venv/bin/activate
 $ pip install -e ".[dev]"
 $ touchline ingest     # about 100 seconds on a cold cache here
 Ingested 5 matches, 17708 events, 14928 360 frames, 4184 completed receptions into data/touchline.duckdb.
-Data: StatsBomb Open Data. Not affiliated with any club, player or federation, Anthropic or StatsBomb.
+Data: StatsBomb Open Data. Not endorsed by any club, player or federation. Not affiliated with Anthropic or StatsBomb.
   3938639  2024-06-18  Turkey 3-1 Georgia
   3930174  2024-06-22  Turkey 0-3 Portugal
   3930184  2024-06-26  Czech Republic 1-2 Turkey
@@ -87,49 +87,59 @@ Data: StatsBomb Open Data. Not affiliated with any club, player or federation, A
 Without an API key, `--metrics-only` computes and charts everything. This is real output:
 
 ```console
-$ touchline report --match 3938639 --player "Hakan Çalhanoğlu" --metrics-only
+$ touchline report --match 3938639 --player "Arda Güler" --metrics-only
 | Metric | Value |
 | --- | --- |
 | Match | Turkey 3-1 Georgia |
-| Minutes | 91.6 |
-| Positions | Right Defensive Midfield, Left Defensive Midfield |
-| Shots / goals / xG | 4 / 0 / 0.12 |
-| Passes completed / attempted | 89 / 98 |
-| Progressive passes | 3 |
+| Minutes | 79.3 |
+| Positions | Right Wing, Center Forward |
+| Shots / goals / xG | 1 / 1 / 0.02 |
+| Passes completed / attempted | 41 / 46 |
+| Progressive passes | 2 |
 | Progressive carries | 3 |
-| Pressures | 13 |
-| Open-play receptions | 82 |
-| Median space at reception, yards | 6.5 (69 measured, 12 censored) |
-| Receptions between the lines | 8 of 74 assessable |
+| Pressures | 7 |
+| Open-play receptions | 47 |
+| Median space at reception, yards | 5.1 (39 measured, 6 censored) |
+| Receptions between the lines | 10 of 43 assessable |
 
-Role group: defensive_midfield, 91.6 minutes in it. Peers in the ingested data: 15. Counts are per 90 in this role.
+Role group: winger, 46.1 minutes in it. Peers in the ingested data: 11. Counts are per 90 in this role.
 | Metric | Player | Peer median | Rank | Peers measured |
 | --- | --- | --- | --- | --- |
-| shots | 3.93 | 0.58 | 1 | 15 |
-| xg | 0.12 | 0.03 | 3 | 15 |
-| passes_completed | 87.43 | 51.24 | 1 | 15 |
-| progressive_passes | 2.95 | 2.03 | 5 | 15 |
-| progressive_carries | 2.95 | 0.0 | 4 | 15 |
-| pressures | 12.77 | 14.38 | 13 | 15 |
-| shot_assists | 1.96 | 0.0 | 1 | 15 |
-| median_space_yards | 6.5 | 6.1 | 5 | 15 |
-| between_lines_pct | 10.8 | 12.0 | 11 | 15 |
+| shots | 0.0 | 1.87 | 9 | 11 |
+| xg | 0.0 | 0.08 | 9 | 11 |
+| passes_completed | 60.5 | 23.5 | 1 | 11 |
+| progressive_passes | 1.95 | 2.09 | 8 | 11 |
+| progressive_carries | 1.95 | 5.22 | 11 | 11 |
+| pressures | 3.9 | 13.37 | 12 | 11 |
+| shot_assists | 3.9 | 1.39 | 1 | 11 |
+| median_space_yards | 5.4 | 4.5 | 3 | 11 |
+| between_lines_pct | 24.1 | 24.0 | 6 | 11 |
 
-Top reception zones of 82 open-play receptions:
+Top reception zones of 47 open-play receptions:
 | Zone | Receptions | Share % | Median space | Peer share % |
 | --- | --- | --- | --- | --- |
-| middle_third:centre | 25 | 30.5 | 6.1 | 23.3 |
-| middle_third:right_wing | 9 | 11.0 | 9.5 | 10.8 |
-| middle_third:left_half_space | 9 | 11.0 | 6.3 | 10.5 |
-| middle_third:left_wing | 9 | 11.0 | 9.7 | 8.1 |
-| final_third:left_half_space | 7 | 8.5 | 4.3 | 2.7 |
+| middle_third:right_wing | 11 | 23.4 | 7.7 | 15.8 |
+| final_third:right_wing | 11 | 23.4 | 5.5 | 15.5 |
+| middle_third:centre | 7 | 14.9 | 3.5 | 4.1 |
+| final_third:centre | 5 | 10.6 | 3.5 | 4.6 |
+| final_third:right_half_space | 5 | 10.6 | 2.6 | 3.6 |
 
-Charts in reports/3938639-hakan-calhanoglu/charts.
-Data: StatsBomb Open Data. Not affiliated with any club, player or federation, Anthropic or StatsBomb.
+Charts in reports/3938639-arda-guler/charts.
+Data: StatsBomb Open Data. Not endorsed by any club, player or federation. Not affiliated with Anthropic or StatsBomb.
 ```
 
-The role table counts only events and minutes in the role group. Peers come from these five
+The role table counts only events and minutes in the role group, which is why the shot above does
+not appear in it: it came while the data had him at Center Forward. Peers come from these five
 matches only.
+
+The same command works for anyone in the data. Arda Güler and more, same match, from real runs:
+
+| Player | Minutes | Passes completed / attempted | Progressive passes | Median space at reception, yards | Between the lines |
+| --- | --- | --- | --- | --- | --- |
+| Arda Güler | 79.3 | 41 / 46 | 2 | 5.1 | 10 of 43 |
+| Hakan Çalhanoğlu | 91.6 | 89 / 98 | 3 | 6.5 | 8 of 74 |
+| Ferdi Erenay Kadıoğlu | 98.9 | 74 / 82 | 4 | 6.2 | 5 of 57 |
+| Barış Alper Yılmaz | 98.8 | 12 / 18 | 3 | 3.2 | 6 of 17 |
 
 ![Pass network](docs/images/pass_network.png)
 
@@ -139,15 +149,15 @@ With a key:
 
 ```console
 $ export ANTHROPIC_API_KEY=...
-$ touchline report --match 3938639 --player "Hakan Çalhanoğlu"     # writes a draft; releases nothing
-$ touchline approve reports/3938639-hakan-calhanoglu/draft.json --by "Your Name"
-$ touchline chat --player "Hakan Çalhanoğlu" --match 3938639
+$ touchline report --match 3938639 --player "Arda Güler"     # writes a draft; releases nothing
+$ touchline approve reports/3938639-arda-guler/draft.json --by "Your Name"
+$ touchline chat --player "Arda Güler" --match 3938639
 ```
 
 Those commands have not been run against the API. Without a key they stop cleanly:
 
 ```console
-$ touchline report --match 3938639 --player "Hakan Çalhanoğlu"
+$ touchline report --match 3938639 --player "Arda Güler"
 No Claude API credentials found. Set ANTHROPIC_API_KEY. Metrics and charts work without one: try `touchline report --match <id> --player <name> --metrics-only`.
 [exit code 2]
 ```
@@ -155,8 +165,8 @@ No Claude API credentials found. Set ANTHROPIC_API_KEY. Metrics and charts work 
 An out-of-scope question never reaches the model, so this works with no key:
 
 ```console
-$ touchline chat --player "Hakan Çalhanoğlu" --ask "Dizim ağrıyor, yarın oynayabilir miyim?"
-Coach for Hakan Çalhanoğlu. Data: StatsBomb Open Data. Ctrl-D to leave.
+$ touchline chat --player "Arda Güler" --ask "Dizim ağrıyor, yarın oynayabilir miyim?"
+Coach for Arda Güler. Data: StatsBomb Open Data. Ctrl-D to leave.
 Sağlık konularında yardımcı olamam. Lütfen takım doktoru veya fizyoterapistle görüş. Rolün ve topu nerede aldığın konusunda yardımcı olabilirim.
 ```
 
