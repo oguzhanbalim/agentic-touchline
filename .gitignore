@@ -1,0 +1,23 @@
+# StatsBomb data and anything derived from it at runtime stay local.
+data/
+reports/
+*.duckdb
+*.duckdb.wal
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local secrets and OS files
+.env
+.DS_Store

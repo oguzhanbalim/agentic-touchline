@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-touchline"
+version = "0.1.0"
+description = "Football match-analysis agent on Claude. Code computes the numbers from StatsBomb Open Data; the model explains them."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Oğuzhan Balım" }]
+dependencies = [
+    "anthropic>=2.3,<3",
+    "duckdb>=1.1",
+    "matplotlib>=3.9",
+    "mplsoccer>=1.4",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.10", "pytest>=8", "ruff>=0.6", "pandas-stubs"]
+
+[project.scripts]
+touchline = "touchline.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/touchline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -m 'not network and not live'"
+markers = [
+    "network: downloads real StatsBomb Open Data into the local cache",
+    "live: calls the Anthropic API; needs ANTHROPIC_API_KEY and costs money",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+# RUF001 flags Turkish letters such as the dotless i, which this project handles on purpose.
+ignore = ["RUF001"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["mplsoccer.*", "matplotlib.*"]
+ignore_missing_imports = true
