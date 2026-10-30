@@ -102,7 +102,10 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
 def _print_metrics(con: duckdb.DuckDBPyConnection, player_id: int, match_id: int) -> None:
     print(metrics_table(con, match_id, player_id))
     comparison = role_comparison(con, player_id, match_id)
-    print(f"\nRole group: {comparison['role']}. Peers in the ingested data: {comparison['peers']}.")
+    print(
+        f"\nRole group: {comparison['role']}, {comparison['minutes_in_role']} minutes in it. "
+        f"Peers in the ingested data: {comparison['peers']}. Counts are per 90 in this role."
+    )
     print("| Metric | Player | Peer median | Rank | Peers measured |")
     print("| --- | --- | --- | --- | --- |")
     for item in comparison["metrics"]:

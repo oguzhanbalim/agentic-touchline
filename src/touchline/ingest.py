@@ -151,6 +151,7 @@ def _minutes_rows(
                     "minutes": minutes,
                 }
                 for position, minutes in per_position.items()
+                if minutes > 0
             )
     return rows
 
@@ -274,7 +275,6 @@ def ingest(
     competition_id: int,
     season_id: int,
     team: str | None,
-    match_ids: list[int] | None = None,
 ) -> IngestSummary:
     """Rebuild the database from the cache. Fails if any match has integrity problems.
 
@@ -283,10 +283,8 @@ def ingest(
     matches = [Match.model_validate(item) for item in cache.matches(competition_id, season_id)]
     if team is not None:
         matches = [match for match in matches if team in match.teams]
-    if match_ids is not None:
-        matches = [match for match in matches if match.match_id in match_ids]
     if not matches:
-        raise ValueError(f"no matches for team={team!r} match_ids={match_ids!r}")
+        raise ValueError(f"no matches for team {team!r}")
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = connect(db_path, read_only=False)

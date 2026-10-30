@@ -86,6 +86,8 @@ def _player_row(con: duckdb.DuckDBPyConnection, player_id: int) -> dict[str, Any
 def find_players(con: duckdb.DuckDBPyConnection, query: str) -> list[dict[str, Any]]:
     """Match a name fragment, ignoring case and diacritics, Turkish letters included."""
     needle = fold_name(query)
+    if not needle:
+        return []
     rows = fetch_dicts(
         con,
         """
@@ -97,7 +99,8 @@ def find_players(con: duckdb.DuckDBPyConnection, query: str) -> list[dict[str, A
         GROUP BY l.player_id ORDER BY minutes DESC, player
         """,
     )
-    return [row for row in rows if needle and needle in fold_name(row["player"])]
+    # Match from the start of a word, so a fragment cannot hit the middle of another name.
+    return [row for row in rows if f" {needle}" in f" {fold_name(row['player'])}"]
 
 
 _FOLD = str.maketrans(
@@ -457,6 +460,14 @@ def role_comparison(
         return {**player, "match_id": match_id, "role": None, "peers": 0, "metrics": []}
 
     own = _role_values(con, role, match_id, [player_id]).get(player_id, {})
+    scope_sql, scope_params = _scope(match_id)
+    minutes_in_role = con.execute(
+        f"""
+        SELECT coalesce(sum(minutes), 0) FROM player_minutes
+        WHERE player_id = ? AND list_contains(?, position) {scope_sql}
+        """,
+        [player_id, list(ROLE_GROUPS[role]), *scope_params],
+    ).fetchone()
     peer_ids = _peer_ids(con, player_id, role, min_minutes)
     peers = _role_values(con, role, None, peer_ids) if peer_ids else {}
 
@@ -482,6 +493,7 @@ def role_comparison(
         **player,
         "match_id": match_id,
         "role": role,
+        "minutes_in_role": rounded(minutes_in_role[0] if minutes_in_role else 0, 1),
         "peers": len(peers),
         "peer_min_minutes": min_minutes,
         "metrics": metrics,

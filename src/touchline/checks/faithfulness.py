@@ -69,10 +69,6 @@ class FaithfulnessResult:
         return not self.unsupported
 
 
-def _decimals(fraction: str) -> int:
-    return len(fraction)
-
-
 def parse_candidates(body: str) -> tuple[tuple[float, int], ...]:
     """Every value a numeric spelling can mean. "1,234" is 1.234 or 1234; "1,5" is only 1.5."""
     separators = [char for char in body if char in ".,"]
@@ -83,13 +79,13 @@ def parse_candidates(body: str) -> tuple[tuple[float, int], ...]:
         last = max(body.rfind("."), body.rfind(","))
         whole, fraction = body[:last], body[last + 1 :]
         whole = whole.replace(".", "").replace(",", "")
-        return ((float(f"{whole}.{fraction}"), _decimals(fraction)),)
+        return ((float(f"{whole}.{fraction}"), len(fraction)),)
     groups = re.split(r"[.,]", body)
     if len(groups) > 2:
         # Repeated separator can only be grouping: 1.234.567.
         return ((float("".join(groups)), 0),)
     whole, fraction = groups
-    values = [(float(f"{whole}.{fraction}"), _decimals(fraction))]
+    values = [(float(f"{whole}.{fraction}"), len(fraction))]
     if len(fraction) == 3:
         values.append((float(whole + fraction), 0))
     return tuple(values)
@@ -139,7 +135,10 @@ class _Evidence:
 
 
 def _collect_evidence(outputs: Iterable[Any]) -> _Evidence:
-    """Numeric leaves, plus numeric or score-like strings. Dates and ids in text do not count."""
+    """Numeric leaves, plus strings that are wholly a number or a score-like literal.
+
+    Digits inside other strings do not count, so "06" is not backed by a date.
+    """
     numbers: set[float] = set()
     literals: set[str] = set()
     for output in outputs:

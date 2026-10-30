@@ -31,7 +31,10 @@ from touchline.metrics._sql import (
     PROGRESSIVE_PASS,
     fetch_dicts,
 )
-from touchline.metrics.definitions import METRICS
+from touchline.metrics.definitions import (
+    PROGRESSIVE_MIN_ABSOLUTE_GAIN_YARDS,
+    PROGRESSIVE_MIN_RELATIVE_GAIN,
+)
 from touchline.metrics.network import pass_network
 from touchline.metrics.team import match_row
 
@@ -367,6 +370,7 @@ def progressive_map(
 
 
 def _short_progressive() -> str:
-    # The registry is the source of truth; confirm the short label still matches it.
-    assert "25%" in METRICS["progressive_passes"].definition
-    return "at least 25% and 5 yards closer to goal"
+    return (
+        f"at least {PROGRESSIVE_MIN_RELATIVE_GAIN:.0%} and "
+        f"{PROGRESSIVE_MIN_ABSOLUTE_GAIN_YARDS:.0f} yards closer to goal"
+    )

@@ -19,8 +19,9 @@ How the repository handles the terms:
 | 1.4 | Accredit published analysis with the StatsBomb brand logo | The logo appears in the README and on every generated chart. |
 | Preamble | Analysis is not necessarily StatsBomb's opinion | Stated in the README. |
 
-The agents send derived aggregates from local tools to the Anthropic Messages
-API. They do not send raw event files or freeze frames. Whether that counts as
+The agents send derived figures from local tools (aggregates and a per-shot
+summary) to the Anthropic Messages API. They do not send raw event records,
+coordinates or freeze frames. Whether that counts as
 "providing the data" under clause 1.2.1 is a question for whoever runs the live
 agent; the live agent has not been run from this repository.
 

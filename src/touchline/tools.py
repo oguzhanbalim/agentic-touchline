@@ -2,8 +2,9 @@
 
 The model gets a closed set of typed functions, never SQL. Each tool validates its input
 against the same Pydantic model that generates its strict JSON schema, queries DuckDB
-through a read-only connection with bound parameters, and returns derived aggregates as
-JSON. Raw events and freeze frames never leave the machine through these tools.
+through a read-only connection with bound parameters, and returns derived figures as JSON:
+aggregates, plus a per-shot summary. Raw event records, coordinates and freeze frames never
+leave the machine through these tools.
 """
 
 from __future__ import annotations

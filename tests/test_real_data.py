@@ -12,12 +12,14 @@ from pathlib import Path
 import duckdb
 import pytest
 
+from touchline.checks.faithfulness import check_faithfulness
 from touchline.config import DEFAULT_COMPETITION_ID, DEFAULT_SEASON_ID, DEFAULT_TEAM, default_paths
 from touchline.db import connect
 from touchline.fetch import OpenDataCache
 from touchline.ingest import check_integrity, ingest
 from touchline.metrics import match_summary, pass_network, player_metrics
 from touchline.metrics.player import find_players
+from touchline.tools import ToolBox
 
 pytestmark = pytest.mark.network
 
@@ -94,6 +96,11 @@ def test_team_minutes_equal_eleven_players_for_the_match(
         assert minutes == pytest.approx(11 * match_length - lost, abs=3.0), f"{match_id} {team}"
 
 
+def test_no_empty_minute_rows(real_con: duckdb.DuckDBPyConnection) -> None:
+    rows = real_con.execute("SELECT count(*) FROM player_minutes WHERE minutes <= 0").fetchone()
+    assert rows == (0,)
+
+
 def test_a_real_sending_off_caps_minutes_and_ends_the_network_window(
     real_con: duckdb.DuckDBPyConnection,
 ) -> None:
@@ -162,6 +169,18 @@ def test_pass_network_has_the_starting_eleven(real_con: duckdb.DuckDBPyConnectio
     network = pass_network(real_con, 3938639, "Turkey")
     assert len(network.nodes) == 11
     assert network.window_end_minute is not None and network.window_end_minute > 45
+
+
+def test_faithfulness_on_real_tool_output(real_con: duckdb.DuckDBPyConnection) -> None:
+    toolbox = ToolBox(real_con)
+    player_id = find_players(real_con, "arda guler")[0]["player_id"]
+    metrics = toolbox.run("get_player_metrics", {"player_id": player_id, "match_id": 3938639})
+    assert not metrics.is_error
+    passes = metrics.output["passes_completed"]
+    pct = str(metrics.output["pass_completion_pct"])
+    assert check_faithfulness(f"{passes} completed passes, {pct}%", toolbox.evidence).passed
+    assert check_faithfulness(f"%{pct.replace('.', ',')} tamamlama", toolbox.evidence).passed
+    assert not check_faithfulness(f"{passes + 1000} completed passes", toolbox.evidence).passed
 
 
 def test_named_scorer_has_the_goal_in_the_data(real_con: duckdb.DuckDBPyConnection) -> None:
