@@ -137,7 +137,6 @@ The same command works for anyone in the data. Arda Güler and more, same match,
 | Player | Minutes | Passes completed / attempted | Progressive passes | Median space at reception, yards | Between the lines |
 | --- | --- | --- | --- | --- | --- |
 | Arda Güler | 79.3 | 41 / 46 | 2 | 5.1 | 10 of 43 |
-| Hakan Çalhanoğlu | 91.6 | 89 / 98 | 3 | 6.5 | 8 of 74 |
 | Ferdi Erenay Kadıoğlu | 98.9 | 74 / 82 | 4 | 6.2 | 5 of 57 |
 | Barış Alper Yılmaz | 98.8 | 12 / 18 | 3 | 3.2 | 6 of 17 |
 
